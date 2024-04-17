@@ -21,16 +21,47 @@ train_size = int(0.8 * len(health_data))
 train_data = health_data[:train_size]
 test_data = health_data[train_size:]
 
-# Plot the distribution of the data set
-plt_train_data = train_data.drop(['Diagnosis'], axis=1)
+###### Plotting the data ######
+
+# Sample plot, each in a separate frame
+# # Plot the distribution of the data set
+# plt_train_data = train_data.drop(['Diagnosis'], axis=1)
+
+# # Plot distribution of each attribute
+# for column in plt_train_data.columns:
+#     sns.histplot(plt_train_data[column], kde=True)
+#     plt.title(f'Distribution of {column}')
+#     plt.xlabel(column)
+#     plt.ylabel('Frequency')
+#     plt.show()
+
+# Plot all in one frame
+# Calculate the number of rows and columns for subplots
+num_plots = len(train_data.columns)
+num_cols = 7  # Number of columns for subplots
+num_rows = (num_plots - 1) // num_cols + 1  # Calculate the number of rows needed
+
+# Used to modify desired height of the frame
+height_per_row = 2  # Adjust this value as needed
+fig_height = height_per_row * num_rows
+
+# Create subplots
+fig, axes = plt.subplots(num_rows, num_cols, figsize=(25, fig_height))
 
 # Plot distribution of each attribute
-for column in plt_train_data.columns:
-    sns.histplot(plt_train_data[column], kde=True)
-    plt.title(f'Distribution of {column}')
-    plt.xlabel(column)
-    plt.ylabel('Frequency')
-    plt.show()
+for i, column in enumerate(train_data.columns):
+    row_index = i // num_cols
+    col_index = i % num_cols
+    sns.histplot(train_data[column], kde=True, ax=axes[row_index, col_index])
+    axes[row_index, col_index].set_title(f'Distribution of {column}')
+    axes[row_index, col_index].set_xlabel(column)
+    axes[row_index, col_index].set_ylabel('Frequency')
+
+# Adjust layout
+plt.tight_layout()
+plt.show()
+
+###### END Plotting the data ######
 
 # Convert data to NumPy arrays
 X_train = train_data.drop('Diagnosis', axis=1).values
