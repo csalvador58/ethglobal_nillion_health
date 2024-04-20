@@ -49,5 +49,10 @@ def compute_scaled_data(data: any, scaling_factor: int) -> list[int]:
     scaled_data = [round(value * scaling_factor) for value in data]
     return scaled_data
     
-    
+def compute_prediction(test_data: list[int], theta: list[int]) -> int:
+    # Perform element-wise multiplication and summation for test data
+    prediction = 0
+    for x_val, theta_val in zip(test_data, theta):
+        prediction += x_val * theta_val
+    return prediction
     
