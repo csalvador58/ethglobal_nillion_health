@@ -1,6 +1,7 @@
 from matplotlib import pyplot as plt
 from seaborn import histplot as sns_histplot
 from pandas import DataFrame
+import math
 
 
 def plot_distributions(train_data: DataFrame, num_columns: int, row_height: int, size: int, fig_name: str) -> None:
@@ -32,4 +33,21 @@ def plot_distributions(train_data: DataFrame, num_columns: int, row_height: int,
     plt.show()
     
     return None
+    
+    
+    
+def calc_scaling_factor(data:any, precision: int) -> int:
+    # Calc max absolute value
+    max_abs_value = max(abs(value) for value in data)
+    
+    # Calc scaling factor
+    scaling_factor = 10 ** (precision - math.ceil(math.log10(max_abs_value)))
+    return scaling_factor
+
+def compute_scaled_data(data: any, scaling_factor: int) -> list[int]:
+    # Scale values
+    scaled_data = [round(value * scaling_factor) for value in data]
+    return scaled_data
+    
+    
     
