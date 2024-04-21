@@ -48,7 +48,7 @@ def nada_main():
         combined_theta.append((hp_1_param * hp_1_weight) + (hp_2_param * hp_2_weight))
 
     # Perform element-wise multiplication and summation for scaled data
-    prediction = Integer(0)
+    prediction = hp_1_data_size
     for x_val, theta_val in zip(patient_image_data, combined_theta):
         prediction += x_val * theta_val
 

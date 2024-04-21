@@ -6,6 +6,8 @@ load_dotenv()
 # replace this with your program_id
 CONFIG_PROGRAM_NAME = "healthcare_imaging_compute"
 
+CONFIG_NUM_PARAMS = 31
+
 # 1st party
 CONFIG_TEST_PARTY_1 = {
     "userkey_file": os.getenv("NILLION_USERKEY_PATH_PARTY_1"),

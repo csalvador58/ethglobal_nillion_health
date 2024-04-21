@@ -18,6 +18,7 @@ from config import (
     CONFIG_PROGRAM_NAME,
     CONFIG_TEST_PARTY_1,
     CONFIG_HP_PARTIES,
+    CONFIG_NUM_PARAMS
 )
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -233,6 +234,8 @@ async def main():
     cluster_id = os.getenv("NILLION_CLUSTER_ID")
     program_mir_path = f"../programs-compiled/{CONFIG_PROGRAM_NAME}.nada.bin"
 
+    num_params = CONFIG_NUM_PARAMS
+    # num_params = train_data.columns.size
 
     ###### Setup test patient client ######
     print("\nSetting up test patient client...\n")
@@ -240,6 +243,7 @@ async def main():
         getUserKeyFromFile(CONFIG_TEST_PARTY_1["userkey_file"]),
         getNodeKeyFromFile(CONFIG_TEST_PARTY_1["nodekey_file"]),
     )
+    
     
     party_id_test_patient = client_test_patient.party_id()
     user_id_test_patient = client_test_patient.user_id()
@@ -259,7 +263,7 @@ async def main():
     print("\nSetting up secrets for test patient...\n")
     party_test_patient_dict = {}
     
-    for i in range(train_data.columns.size):
+    for i in range(num_params):
         print(f"x_test{i}: {scaled_test_data[i]}")
         party_test_patient_dict[f"x_test{i}"] = nillion.SecretInteger(
             scaled_test_data[i]
@@ -311,19 +315,19 @@ async def main():
         # Add dataset secret based on config
         if party_info["dataset"] == "scaled_theta_subset_sm":
             dataset = scaled_theta_subset_sm
-            party_n_dict["dataset_size1"] = nillion.SecretInteger(len(X_train_subset_sm))
+            party_n_dict["dataset1_size"] = nillion.SecretInteger(len(X_train_subset_sm))
             
         elif party_info["dataset"] == "scaled_theta_subset_lg":
             dataset = scaled_theta_subset_lg
-            party_n_dict["dataset_size2"] = nillion.SecretInteger(len(X_train_subset_lg))
+            party_n_dict["dataset2_size"] = nillion.SecretInteger(len(X_train_subset_lg))
         else:
             print("Error: Invalid dataset")
             return
         
         # Add secrets to party
-        print(f"\nAdding {train_data.columns.size} data points to {party_name}:")
+        print(f"\nAdding {num_params} data points to {party_name}:")
         
-        for i in range(train_data.columns.size):
+        for i in range(num_params):
             party_n_dict[f"{party_info["secret_name"]}{i}"] = nillion.SecretInteger(dataset[i])
             print(f"{party_info["secret_name"]}{i}: {dataset[i]}")
             
@@ -377,6 +381,10 @@ async def main():
     print(f"\nComputing on program ID: {program_id_compute} with party ID: {party_id_compute}")
     print(f"\nUser ID: {user_id_compute}")
     
+    print("\nAdding input parties to the computation...")
+    print(f"{CONFIG_TEST_PARTY_1["party_name"]}: {party_id_compute}")
+    print(f"{CONFIG_HP_PARTIES[0]["party_name"]}: {party_ids[0]}")
+    print(f"{CONFIG_HP_PARTIES[1]["party_name"]}: {party_ids[1]}")
     compute_bindings = nillion.ProgramBindings(program_id_compute)
 
     compute_bindings.add_input_party(CONFIG_TEST_PARTY_1["party_name"], party_id_compute)
@@ -384,23 +392,10 @@ async def main():
     
     compute_bindings.add_input_party(CONFIG_HP_PARTIES[0]["party_name"], party_ids[0])
     compute_bindings.add_input_party(CONFIG_HP_PARTIES[1]["party_name"], party_ids[1])
-    
-    
-    # party_ids_to_store_ids_dict = {}
-    # i=0
-    # for pair in party_ids_to_store_ids:
-    #     party_id, store_id = pair.split(':')
-    #     print(f"Party ID: {party_id}, Store ID: {store_id}")
-    #     party_name = CONFIG_HP_PARTIES[i]['party_name']
-    #     print(f"Party Name: {party_name}")
-    #     compute_bindings.add_input_party(party_name, party_id)
-    #     party_ids_to_store_ids_dict[party_id] = store_id
-    #     i=i+1
-        
-    
+      
     # # Setup public variables and compute time secrets
     # public_variables = {}
-    # computation_time_secrets = {}
+    computation_time_secrets = {}
     
     # Compute on the secret with all store ids
     print("\nComputing on the secret with all store ids...\n")
@@ -409,12 +404,13 @@ async def main():
     
     print("\nCombined Store IDs list:")
     print([store_id_test_patient] + store_ids)
+    # print([store_id_test_patient] + store_ids)
     
     compute_id = await client_compute.compute(
         cluster_id,
         compute_bindings,
         [store_id_test_patient] + store_ids,
-        nillion.Secrets({}),
+        nillion.Secrets(computation_time_secrets),
         nillion.PublicVariables({}),
     )
     print(f"\nThe computation was sent to the network - compute_id: {compute_id}")
