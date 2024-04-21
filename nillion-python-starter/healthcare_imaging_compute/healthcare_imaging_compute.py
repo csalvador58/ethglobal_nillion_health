@@ -196,8 +196,8 @@ async def main():
 
     # Perform element-wise multiplication and summation on scaled data
     # Descale test and theta values
-    descaled_test_data = [value / scaling_factor for value in scaled_test_data]
-    descaled_theta = [value / scaling_factor for value in scaled_theta]
+    descaled_test_data = [((value / scaling_factor) - 1) for value in scaled_test_data]
+    descaled_theta = [((value / scaling_factor) - 1) for value in scaled_theta]
 
     Y_prediction_scaled = compute_prediction(descaled_test_data, descaled_theta)
 
@@ -315,11 +315,13 @@ async def main():
         # Add dataset secret based on config
         if party_info["dataset"] == "scaled_theta_subset_sm":
             dataset = scaled_theta_subset_sm
-            party_n_dict["dataset1_size"] = nillion.SecretInteger(len(X_train_subset_sm))
+            weight = 25
+            party_n_dict["dataset1_w"] = nillion.SecretInteger(weight)
             
         elif party_info["dataset"] == "scaled_theta_subset_lg":
             dataset = scaled_theta_subset_lg
-            party_n_dict["dataset2_size"] = nillion.SecretInteger(len(X_train_subset_lg))
+            weight = 75
+            party_n_dict["dataset2_w"] = nillion.SecretInteger(weight)
         else:
             print("Error: Invalid dataset")
             return
@@ -420,7 +422,7 @@ async def main():
         compute_event_result = await client_compute.next_compute_event()
         if isinstance(compute_event_result, nillion.ComputeFinishedEvent):
             print(f"✅  Compute complete for compute_id {compute_event_result.uuid}")
-            print(f"🖥️  The returned value: {compute_event_result.result.value["patient_test_prediction"]}")
+            print(f"🖥️  The returned value1: {compute_event_result.result.value}")
             # print(f"🖥️  The returned value: {compute_event_result.result.value["hp_1_data_size"]}")
             # print(f"🖥️  The returned value: {compute_event_result.result.value["patient_image_data"]}")
             print(f"Scaling Factor: {scaling_factor}")

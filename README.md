@@ -1,6 +1,8 @@
 # ethglobal_nillion_health
 
 ```
+cd nillion-python-starter
+
 python3 -m venv .venv/
 
 source .venv/bin/activate
