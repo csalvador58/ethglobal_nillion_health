@@ -9,9 +9,6 @@ def nada_main():
     health_provider_1 = Party(name="Party2")
     health_provider_2 = Party(name="Party3")
 
-    # Define the public inputs
-    # prediction_init = PublicInteger(Input(name="prediction_init", party=patient))
-
     # Define the secret inputs
     hp_1_data_w = SecretInteger(Input(name="dataset1_w", party=health_provider_1))
     hp_2_data_w = SecretInteger(Input(name="dataset2_w", party=health_provider_2))
@@ -37,20 +34,11 @@ def nada_main():
             ((hp_1_param * hp_1_data_w) / Integer(100))
             + ((hp_2_param * hp_2_data_w) / Integer(100))
         )
-    # for i in range(num_params):
-    #     combined_theta.append(
-    #         ((hp_1_theta[i] * hp_1_data_w) / Integer(100)) + ((hp_2_theta[i] * hp_2_data_w) / Integer(100))
-    #     )
 
     # Perform element-wise multiplication and summation for scaled data
     prediction = Integer(0)
     for x_val, theta_val in zip(patient_image_data, combined_theta):
         prediction += x_val * theta_val
-
-    # for i in range(num_params):
-    #     x_val = patient_image_data[i]
-    #     theta_val = combined_theta[i]
-    #     prediction += x_val * theta_val
 
     return [
         Output(prediction, "patient_test_prediction", patient),

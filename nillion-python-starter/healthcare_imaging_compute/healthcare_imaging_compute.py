@@ -196,8 +196,8 @@ async def main():
 
     # Perform element-wise multiplication and summation on scaled data
     # Descale test and theta values
-    descaled_test_data = [((value / scaling_factor) - 1) for value in scaled_test_data]
-    descaled_theta = [((value / scaling_factor) - 1) for value in scaled_theta]
+    descaled_test_data = [(value / scaling_factor) for value in scaled_test_data]
+    descaled_theta = [(value / scaling_factor) for value in scaled_theta]
 
     Y_prediction_scaled = compute_prediction(descaled_test_data, descaled_theta)
 
@@ -427,7 +427,7 @@ async def main():
             # print(f"🖥️  The returned value: {compute_event_result.result.value["patient_image_data"]}")
             print(f"Scaling Factor: {scaling_factor}")
             patient_prediction = (
-                (compute_event_result.result.value["patient_test_prediction"] / scaling_factor) - 1
+                (compute_event_result.result.value["patient_test_prediction"] / scaling_factor / scaling_factor)
             )
             print(f"🔮  The prediction is {patient_prediction}")
             return compute_event_result.result.value
