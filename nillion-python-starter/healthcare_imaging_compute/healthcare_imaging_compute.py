@@ -87,7 +87,8 @@ async def main():
     # Select a random test_data and drop 'Diagnosis' column
     random_row = test_data.sample(n=1)
     # random_row = test_data.sample(n=1, random_state=20) # fixed random_state=20, selects 541st row with Diagnosis=0
-    print("\nTest instance from test_data before removing target field:")
+    print("\nTest instance from test_data before removing target field (Diagnosis).")
+    print("Data will be used in blind computation test.")
     print(random_row)
     X_test = random_row.drop("Diagnosis", axis=1).values
 
@@ -137,31 +138,28 @@ async def main():
     scaled_theta_subset_sm = compute_scaled_data(theta_subset_sm, scaling_factor)
     scaled_theta_subset_lg = compute_scaled_data(theta_subset_lg, scaling_factor)
 
-    print("\nScaling Factor:")
-    print(scaling_factor)
-    print("\nScaled Coefficients (theta):")
-    print(scaled_theta)
-    print("\nScaled Coefficients (scaled_theta_subset_sm):")
-    print(scaled_theta_subset_sm)
-    print("\nScaled Coefficients (scaled_theta_subset_lg):")
-    print(scaled_theta_subset_lg)
+    ###### TEST ONLY - Print scaling factor and scaled theta values
+    # print(f"\nScaling Factor needed for a precision value ({precision}):")
+    # print(scaling_factor)
+    # print("\nScaled Coefficients (theta):")
+    # print(scaled_theta)
+    # print("\nScaled Coefficients (scaled_theta_subset_sm):")
+    # print(scaled_theta_subset_sm)
+    # print("\nScaled Coefficients (scaled_theta_subset_lg):")
+    # print(scaled_theta_subset_lg)
+    ##### END TEST ONLY #####
 
-    # Predictions for the test data
-    X_test_augmented = np.hstack((np.ones((X_test.shape[0], 1)), X_test))
-    print("\nX_test_augmented:")
-    print(X_test_augmented)
-
+    ##### TEST ONLY - Compute predictions for the test data using np
     # prediction = X_test_augmented @ theta
     # prediction_subset_sm = X_test_augmented @ theta_subset_sm
     # prediction_subset_lg = X_test_augmented @ theta_subset_lg
-
     # print("\nPrediction for the full test data using np:")
     # print(prediction)
-
     # print("\nPrediction for the test data using the small subset of train data:")
     # print(prediction_subset_sm)
     # print("\nPrediction for the test data using the large subset of train data:")
     # print(prediction_subset_lg)
+    ##### END TEST ONLY #####
 
     # Compute prediction value using combined thetas from subsets
     # Calculate weights for each subset
@@ -172,12 +170,19 @@ async def main():
     combined_theta = (theta_subset_sm * weights_subset_sm) + (
         theta_subset_lg * weights_subset_lg
     )
-    print("\nCombined theta via weight average of train datasets:")
+    print("\nCombined theta via weighted average of train datasets:")
     print(combined_theta)
+    
+    # Predictions for the test data. Add a column of ones to X_test for the intercept term
+    X_test_augmented = np.hstack((np.ones((X_test.shape[0], 1)), X_test))
+    print("\nX_test_augmented with intercept term added (Ones column)")
+    print(X_test_augmented)
 
-    prediction_subsets_combined = X_test_augmented @ combined_theta
-    print("\nPrediction for the test data using the combined theta:")
-    print(prediction_subsets_combined)
+    ##### TEST ONLY - Compute predictions for the test data using np
+    # prediction_subsets_combined = X_test_augmented @ combined_theta
+    # print("\nY_Prediction value for the test data using the combined theta:")
+    # print(prediction_subsets_combined)
+    ##### END TEST ONLY #####
 
     # Setup final computation without use of np
     # Get the values from the augmented test data row
@@ -185,8 +190,8 @@ async def main():
 
     # Scale the test data
     scaled_test_data = compute_scaled_data(X_test_values, scaling_factor)
-    print("\nScaled Test Data:")
-    print(scaled_test_data)
+    # print("\nScaled Test Data:")
+    # print(scaled_test_data)
 
     # Perform element-wise multiplication and summation on full test data
     Y_prediction = compute_prediction(X_test_values, theta)
@@ -205,7 +210,7 @@ async def main():
         "\n**Scaled Values check** Y_Prediction value and classification on the full test data (w/scaled values), result expected to be identical:"
     )
     print(
-        f"{Y_prediction_scaled}, classifying as {'M' if round(Y_prediction) == 1 else 'B'}"
+        f"{Y_prediction_scaled}, classifying as {'M' if round(Y_prediction_scaled) == 1 else 'B'}"
     )
 
     # Perform element-wise multiplication and summation on subset_sm data
@@ -213,7 +218,7 @@ async def main():
 
     print("\nY_Prediction value and classification on the subset_sm test data:")
     print(
-        f"{Y_prediction_subset_sm}, classifying as {'M' if round(Y_prediction) == 1 else 'B'}"
+        f"{Y_prediction_subset_sm}, classifying as {'M' if round(Y_prediction_subset_sm) == 1 else 'B'}"
     )
 
     # Perform element-wise multiplication and summation on subset_lg data
@@ -221,14 +226,23 @@ async def main():
 
     print("\nY_Prediction value and classification on the subset_lg test data:")
     print(
-        f"{Y_prediction_subset_lg}, classifying as {'M' if round(Y_prediction) == 1 else 'B'}"
+        f"{Y_prediction_subset_lg}, classifying as {'M' if round(Y_prediction_subset_lg) == 1 else 'B'}"
+    )
+    # Perform element-wise multiplication and summation on combined subset data
+    Y_prediction_combined_theta = compute_prediction(X_test_values, combined_theta)
+
+    print("\nY_Prediction value and classification on the combined theta:")
+    print(
+        f"{Y_prediction_combined_theta}, classifying as {'M' if round(Y_prediction_combined_theta) == 1 else 'B'}"
     )
     
     #############################################
     ############# Nillion section ###############
     #############################################
 
-    print("\n\n******* Nillion Program *******\n\n")
+    print("\n*******************************")
+    print("**** Nillion Blind Compute ****")
+    print("*******************************\n")
 
     # Setup nillion
     cluster_id = os.getenv("NILLION_CLUSTER_ID")
@@ -422,14 +436,14 @@ async def main():
         compute_event_result = await client_compute.next_compute_event()
         if isinstance(compute_event_result, nillion.ComputeFinishedEvent):
             print(f"✅  Compute complete for compute_id {compute_event_result.uuid}")
-            print(f"🖥️  The returned value1: {compute_event_result.result.value}")
-            # print(f"🖥️  The returned value: {compute_event_result.result.value["hp_1_data_size"]}")
-            # print(f"🖥️  The returned value: {compute_event_result.result.value["patient_image_data"]}")
-            print(f"Scaling Factor: {scaling_factor}")
+            print(f"✅  The returned value1: {compute_event_result.result.value}")
+            print(f"✅  Scaling Factor: {scaling_factor}")
+            # Scaling factor is squared in the computation, thus we need to divide by returned value twice
             patient_prediction = (
                 (compute_event_result.result.value["patient_test_prediction"] / scaling_factor / scaling_factor)
             )
-            print(f"🔮  The prediction is {patient_prediction}")
+            print(f"✅  The prediction is {patient_prediction}, classifying as {'M' if round(patient_prediction) == 1 else 'B'}")
+            print("\n\n*** This is only a test performing blind computations and not a real prediction. ***\n\n")
             return compute_event_result.result.value
 
 
