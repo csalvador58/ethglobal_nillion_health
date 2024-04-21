@@ -14,6 +14,11 @@ import sys
 from dotenv import load_dotenv
 import pprint
 import argparse
+from config import (
+    CONFIG_PROGRAM_NAME,
+    CONFIG_TEST_PARTY_1,
+    CONFIG_HEALTH_PROVIDER_PARTIES,
+)
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from helpers.nillion_client_helper import create_nillion_client
@@ -24,7 +29,7 @@ load_dotenv()
 
 async def main():
     print("\n\n******* Healthcare Imaging Compute Program *******\n\n")
-
+    
     # Create a parser
     parser = argparse.ArgumentParser(description="Check if plot is disabled")
     parser.add_argument("--disable_plot", action="store_true", help="Disable plotting")
@@ -121,7 +126,7 @@ async def main():
     print(theta_subset_lg)
 
     # Determine best scaling factor and compute scaled theta values
-    precision = 20
+    precision = 10
     factor_theta = calc_scaling_factor(theta, precision)
     factor_theta_subset_sm = calc_scaling_factor(theta_subset_sm, precision)
     factor_theta_subset_lg = calc_scaling_factor(theta_subset_lg, precision)
@@ -194,7 +199,7 @@ async def main():
     descaled_theta = [value / scaling_factor for value in scaled_theta]
 
     Y_prediction_scaled = compute_prediction(descaled_test_data, descaled_theta)
-    
+
     print(
         "\n**Scaled Values check** Y_Prediction value and classification on the full test data (w/scaled values), result expected to be identical:"
     )
@@ -204,7 +209,7 @@ async def main():
 
     # Perform element-wise multiplication and summation on subset_sm data
     Y_prediction_subset_sm = compute_prediction(X_test_values, theta_subset_sm)
-    
+
     print("\nY_Prediction value and classification on the subset_sm test data:")
     print(
         f"{Y_prediction_subset_sm}, classifying as {'M' if round(Y_prediction) == 1 else 'B'}"
@@ -217,124 +222,209 @@ async def main():
     print(
         f"{Y_prediction_subset_lg}, classifying as {'M' if round(Y_prediction) == 1 else 'B'}"
     )
+    
+    #############################################
+    ############# Nillion section ###############
+    #############################################
 
-    #### Nillion program
+    print("\n\n******* Nillion Program *******\n\n")
 
     # Setup nillion
-    print(os.getenv("NILLION_USERKEY_PATH_PARTY_1"))
+    print("\nSetting up clients...\n")
     cluster_id = os.getenv("NILLION_CLUSTER_ID")
-    userkey = getUserKeyFromFile(os.getenv("NILLION_USERKEY_PATH_PARTY_1"))
+    program_mir_path = f"../programs-compiled/{CONFIG_PROGRAM_NAME}.nada.bin"
 
-    nodekey = getNodeKeyFromFile(os.getenv("NILLION_NODEKEY_PATH_PARTY_1"))
-    client = create_nillion_client(userkey, nodekey)
-    party_id = client.party_id()
-    user_id = client.user_id()
-    patient_name = "Patient_test_img"
-    health_pro_1_name = "HP_1"
-    health_pro_2_name = "HP_2"
-    program_name = "healthcare_imaging_compute"
-    program_mir_path = f"../programs-compiled/{program_name}.nada.bin"
+    # Setup Parties
+    client_test_patient = create_nillion_client(
+        getUserKeyFromFile(CONFIG_TEST_PARTY_1["userkey_file"]),
+        getNodeKeyFromFile(CONFIG_TEST_PARTY_1["nodekey_file"]),
+    )
+    client_health_provider_1 = create_nillion_client(
+        getUserKeyFromFile(CONFIG_HEALTH_PROVIDER_PARTIES[0]["userkey_file"]),
+        getNodeKeyFromFile(CONFIG_HEALTH_PROVIDER_PARTIES[0]["nodekey_file"]),
+    )
+    client_health_provider_2 = create_nillion_client(
+        getUserKeyFromFile(CONFIG_HEALTH_PROVIDER_PARTIES[1]["userkey_file"]),
+        getNodeKeyFromFile(CONFIG_HEALTH_PROVIDER_PARTIES[1]["nodekey_file"]),
+    )
 
-    # store program
-    action_id = await client.store_program(cluster_id, program_name, program_mir_path)
-    program_id = f"{user_id}/{program_name}"
-    print("Stored program. action_id:", action_id)
-    print("Stored program_id:", program_id)
+    # Get party and user IDs
+    print("\nSetting up Party and User IDs...\n")
+    party_id_test_patient = client_test_patient.party_id()
+    user_id_test_patient = client_test_patient.user_id()
+    
+    party_id_health_provider_1 = client_health_provider_1.party_id()
+    user_id_health_provider_1 = client_health_provider_1.user_id()
+    
+    party_id_health_provider_2 = client_health_provider_2.party_id()
+    user_id_health_provider_2 = client_health_provider_2.user_id()
+    
+    print("Party ID Test Patient:", party_id_test_patient)
+    print("User ID Test Patient:", user_id_test_patient)
+    print("Party ID Health Provider 1:", party_id_health_provider_1)
+    print("User ID Health Provider 1:", user_id_health_provider_1)
+    print("Party ID Health Provider 2:", party_id_health_provider_2)
+    print("User ID Health Provider 2:", user_id_health_provider_2)
 
-    exit(1)
-    # Create Secrets
+    # Client test patient stores program
+    print("\nClient 1 Storing program...\n")
+    action_id = await client_test_patient.store_program(
+        cluster_id, CONFIG_PROGRAM_NAME, program_mir_path
+    )
+    program_id = f"{user_id_test_patient}/{CONFIG_PROGRAM_NAME}"
+    print("\nStored program. action_id:", action_id)
+    print("\nStored program_id:", program_id)
 
-    # Setup Nillion parties
+    # Create secrets for all parties
+    #  Patient test party will be a compute time secret
+    #  Health provider 1 and 2 will be stored secrets
+    print("\nSetting up secrets...\n")
+    
+    # Initialize secret dictionaries
     party_patient_dict = {}
     party_hp_1_dict = {}
     party_hp_2_dict = {}
+    # party_patient_dict[f"patient_image_data_test"] = nillion.SecretInteger(10)
+    # party_hp_1_dict[f"hp_1_param_test"] = nillion.SecretInteger(20)
+    # party_hp_2_dict[f"hp_2_param_test"] = nillion.SecretInteger(30)
 
     # Add secret integers to parties
-    party_hp_1_dict["hp_1_data_size"] = nillion.SecretInteger(len(X_train_subset_sm))
-    party_hp_2_dict["hp_2_data_size"] = nillion.SecretInteger(len(X_train_subset_lg))
+    #  Health provider's dataset sizes
+    #  Health provider's theta values
+    #  Patient's test image data 
+    print("\nhp_1_size and hp_2_size secret integers:")
+    print(f"hp_1_size: {len(X_train_subset_sm)}")
+    print(f"hp_2_size: {len(X_train_subset_lg)}")
+    party_hp_1_dict["hp_1_size"] = nillion.SecretInteger(len(X_train_subset_sm))
+    party_hp_2_dict["hp_2_size"] = nillion.SecretInteger(len(X_train_subset_lg))
 
+    print("\nTrain Data Columns:")
+    print(train_data.columns.size)
+    
     for i in range(train_data.columns.size):
-        party_patient_dict[f"patient_image_data_{i}"] = nillion.SecretInteger(
+        print(f"x_test{i}: {scaled_test_data[i]}")
+        party_patient_dict[f"x_test{i}"] = nillion.SecretInteger(
             scaled_test_data[i]
         )
-        party_hp_1_dict[f"hp_1_param_{i}"] = nillion.SecretInteger(
+        print(f"hp1_p{i}: {scaled_theta_subset_sm[i]}")
+        party_hp_1_dict[f"hp1_p{i}"] = nillion.SecretInteger(
             scaled_theta_subset_sm[i]
         )
-        party_hp_2_dict[f"hp_2_param_{i}"] = nillion.SecretInteger(
+        print(f"hp2_p{i}: {scaled_theta_subset_lg[i]}")
+        party_hp_2_dict[f"hp2_p{i}"] = nillion.SecretInteger(
             scaled_theta_subset_lg[i]
         )
 
-    print("Party Patient:")
+    print("\nParty Patient:")
     pprint.PrettyPrinter(indent=4).pprint(party_patient_dict)
-    print("Party HP 1:")
+    print("\nParty HP 1:")
     pprint.PrettyPrinter(indent=4).pprint(party_hp_1_dict)
-    print("Party HP 2:")
+    print("\nParty HP 2:")
     pprint.PrettyPrinter(indent=4).pprint(party_hp_2_dict)
 
-    # Parties store secrets
+    # Health Provider Parties store secrets
     party_hp_1_secrets = nillion.Secrets(party_hp_1_dict)
     party_hp_2_secrets = nillion.Secrets(party_hp_2_dict)
 
-    # Bind party secrets to program
-    secret_bindings = nillion.ProgramBindings(program_id)
-    secret_bindings.add_input_party(health_pro_1_name, party_id)
-    secret_bindings.add_input_party(health_pro_2_name, party_id)
-
-    # Give permissions
-    secret_permissions = nillion.Permissions.default_for_user(user_id)
-    secret_permissions.add_compute_permission({user_id: {program_id}})
-
-    # Store in the network and retrieve store Ids
+    # Setup default permissions and add compute permissions for test patient on health providers' secrets
+    
+    # secret_permissions_test_patient = nillion.Permissions.default_for_user(user_id_test_patient)
+    
+    secret_permissions_hp_1 = nillion.Permissions.default_for_user(user_id_health_provider_1)
+    secret_permissions_hp_1.add_compute_permissions({user_id_test_patient: {program_id}})
+    
+    secret_permissions_hp_2 = nillion.Permissions.default_for_user(user_id_health_provider_2)
+    secret_permissions_hp_2.add_compute_permissions({user_id_test_patient: {program_id}})
+        
+    # Store secrets inputs on the network and retrieve store Ids
+    print("\nStoring secrets on the network...\n")
     store_ids = []
-
-    print(f"Storing secrets for Party HP 1: {party_hp_1_secrets}")
-    store_id = await client.store_secrets(
-        cluster_id, secret_bindings, party_hp_1_secrets, secret_permissions
+    
+    print(f"\nStoring secrets for Party HP 1: {party_hp_1_secrets} at program_id: {program_id}")
+    program_bindings = nillion.ProgramBindings(program_id)
+    program_bindings.add_input_party(
+        CONFIG_HEALTH_PROVIDER_PARTIES[0]["party_name"], party_id_health_provider_1
+    )
+    store_id = await client_health_provider_1.store_secrets(
+        cluster_id, program_bindings, party_hp_1_secrets, secret_permissions_hp_1
     )
     store_ids.append(store_id)
-    print(f"Stored Party HP 1 with store_id: {store_id}")
+    print(f"\nStored Party HP 1 with store_id: {store_id}")
+    
+    print("\nSleeping for 10 seconds...\n")
+    time.sleep(10)
+    print("\nWaking up...\n")
 
-    print(f"Storing secrets for Party HP 2: {party_hp_2_secrets}")
-    store_id = await client.store_secrets(
-        cluster_id, secret_bindings, party_hp_2_secrets, secret_permissions
+    print(f"\nStoring secrets for Party HP 2: {party_hp_2_secrets} at program_id: {program_id}")
+    program_bindings = nillion.ProgramBindings(program_id)
+    program_bindings.add_input_party(
+        CONFIG_HEALTH_PROVIDER_PARTIES[1]["party_name"], party_id_health_provider_2
+    )
+    store_id = await client_health_provider_2.store_secrets(
+        cluster_id, program_bindings, party_hp_2_secrets, secret_permissions_hp_2
     )
     store_ids.append(store_id)
-    print(f"Stored Party HP 2 with store_id: {store_id}")
-
+    print(f"\nStored Party HP 2 with store_id: {store_id}")
+    
+    # Setup compute
+    # client_compute = create_nillion_client(
+    #     getUserKeyFromFile(CONFIG_TEST_PARTY_1["userkey_file"]),
+    #     getNodeKeyFromFile(CONFIG_TEST_PARTY_1["nodekey_alternate_file"]),
+    # )
+    
+    
     # Bind the parties in the computation to the client to set input and output parties
+    print("\nSetting up compute bindings..\n")
+    
+    client_test_compute = create_nillion_client(
+        getUserKeyFromFile(CONFIG_TEST_PARTY_1["userkey_file"]),
+        getNodeKeyFromFile(CONFIG_TEST_PARTY_1["nodekey_alternate_file"]),
+    )
+    party_id_test_compute = client_test_compute.party_id()
+    user_id_test_compute = client_test_compute.user_id()
+    
+    print(f"\nComputing on program ID: {program_id} with party ID: {party_id_test_compute}")
+    print(f"\nUser ID: {user_id_test_compute}")
+    print(f"\nStore IDs: {store_ids}")
+    
     compute_bindings = nillion.ProgramBindings(program_id)
-    compute_bindings.add_input_party(health_pro_1_name, party_id)
-    compute_bindings.add_input_party(health_pro_2_name, party_id)
-    compute_bindings.add_output_party(patient_name, party_id)
+    
+    compute_bindings.add_input_party(CONFIG_TEST_PARTY_1["party_name"], party_id_test_compute)
+    compute_bindings.add_input_party(CONFIG_HEALTH_PROVIDER_PARTIES[0]["party_name"], party_id_health_provider_1)
+    compute_bindings.add_input_party(CONFIG_HEALTH_PROVIDER_PARTIES[1]["party_name"], party_id_health_provider_2)
+    
+    compute_bindings.add_output_party(CONFIG_TEST_PARTY_1["party_name"], party_id_test_compute)
+    
+    # Setup public variables and compute time secrets
+    public_variables = {}
     computation_time_secrets = nillion.Secrets(party_patient_dict)
-
-    # Setup public variables
-    public_variables = {"prediction_init": 0}
-
+    
     # Compute the prediction on the secret data
-    compute_id = await client.compute(
+    compute_id = await client_test_compute.compute(
         cluster_id,
         compute_bindings,
         store_ids,
         computation_time_secrets,
-        secret_permissions,
         nillion.PublicVariables(public_variables),
     )
-    print(f"The computation was sent to the network - compute_id: {compute_id}")
-
+    print(f"\nThe computation was sent to the network - compute_id: {compute_id}")
+    
     # Compute Results
-    compute_event_result = await client.next_compute_event()
-    while not isinstance(compute_event_result, nillion.ComputeFinishedEvent):
-        time.sleep(0.5)
-        compute_event_result = await client.next_compute_event()
-
-    print(f"✅  Compute complete for compute_id {compute_event_result.uuid}")
-    print(f"🖥️  The returned value: {compute_event_result.result.value}")
-    print(f"Scaling Factor: {scaling_factor}")
-    patient_prediction = (
-        compute_event_result.result.value["patient_test_prediction"] / scaling_factor
-    )
-    print(f"🔮  The prediction is {patient_prediction}")
+    print("\nComputing results...\n")
+    compute_event_result = await client_test_compute.next_compute_event()
+    while True:
+        compute_event_result = await client_test_compute.next_compute_event()
+        if isinstance(compute_event_result, nillion.ComputeFinishedEvent):
+            print(f"✅  Compute complete for compute_id {compute_event_result.uuid}")
+            print(f"🖥️  The returned value: {compute_event_result.result.value["patient_test_prediction"]}")
+            print(f"🖥️  The returned value: {compute_event_result.result.value["hp_1_data_size"]}")
+            print(f"🖥️  The returned value: {compute_event_result.result.value["patient_image_data"]}")
+            print(f"Scaling Factor: {scaling_factor}")
+            patient_prediction = (
+                (compute_event_result.result.value["patient_test_prediction"] / scaling_factor) - 1
+            )
+            print(f"🔮  The prediction is {patient_prediction}")
+            return compute_event_result.result.value
 
 
 if __name__ == "__main__":
